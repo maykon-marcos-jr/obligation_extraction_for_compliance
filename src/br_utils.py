@@ -1,0 +1,43 @@
+obligation_modals = [
+    "adotarão",
+    "cabe ",
+    "caberá",
+    "cabendo",
+    "Compete à",
+    "comunicará",
+    "comunicarão",
+    "deve",
+    "devem ",
+    "deverá",
+    "deverão",
+    "devendo",
+    "definirá",
+    "disciplinará",
+    "disponibilizará",
+    "disporá",
+    "é obrigação do",
+    "estabelecerá",
+    "exercerá",
+    "ficam sujeitos a",
+    "fomentará",
+    "implementará",
+    "informarão",
+    "inverterá o ônus da prova",
+    "manterá",
+    "observarão",
+    "permanece sujeita a",
+    "permanecem sujeitos a",
+    "regulamentará",
+    "regulamentarão",
+    "São vedados",
+    "será fornecida",
+    "será fornecido",
+    "serão públicas",
+    "terá",
+    "verificará"
+]
+
+indexers = [
+    "§",
+    "I"
+]
