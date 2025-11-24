@@ -36,8 +36,3 @@ obligation_modals = [
     "terá",
     "verificará"
 ]
-
-indexers = [
-    "§",
-    "I"
-]

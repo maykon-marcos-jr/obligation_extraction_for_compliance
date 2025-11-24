@@ -1,25 +1,30 @@
 # obligation_extraction_for_compliance
 
+## setup
+> creates the environment
+```sh
+conda env create -f alma_env.yml
+```
+
+## start
+> activates the env
+```sh
+conda activate alma_env
+```
+
 ## run
 > uses conda to run main.py
 
 ```sh
 echo "running the main archive..."
-conda run -n alma_env python main.py
+python main.py
 ```
 
 ## detection-test
 > runs the obligation_detection module for tests
 ```sh
-echo "running the detection archive..."
 cd src
-conda run -n alma_env python obligation_detection.py
-```
-
-## setup
-> creates the environment
-```sh
-conda env create -f alma_env.yml
+python obligation_detection.py
 ```
 
 
