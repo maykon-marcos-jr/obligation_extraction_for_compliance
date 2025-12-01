@@ -268,7 +268,6 @@ def obligation_detection(url, name):
 
     if not url:
         url = regulations[name]
-        print(url)
     
     if url.find("data/raw/datasets/") != -1:
         txt = get_html_text(url)
@@ -279,8 +278,8 @@ def obligation_detection(url, name):
     printf(txt, "trimmed.txt")
     txt = parse_br_lines(txt)
     printf(txt, "parsed.txt")
-    txt = remove_br_chars(txt)
-    printf(txt, "formatted.txt")
+    # txt = remove_br_chars(txt)
+    # printf(txt, "formatted.txt")
     sentences = txt.split("\n")
 
     global obligation_modals
@@ -304,11 +303,11 @@ def obligation_detection(url, name):
         )
                 
     # Save the extracted data to a JSON file.
-    with open(name + ".json", "w") as f:
+    with open("../data/raw/datasets/" + name + ".json", "w") as f:
         json.dump(d, f, indent=4)
     
     return d
 
 
 if __name__ == "__main__":
-    obligation_detection(None, "LGPD")
+    obligation_detection(None, "PLIA")
