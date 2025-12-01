@@ -41,9 +41,21 @@ def get_url_text(url) -> str:
     
     r = requests.get(url, headers=headers)
     r.encoding = "latin-1"   # or "windows-1252"
+    html_text = r.text
 
-    bs = BeautifulSoup(r.text, 'html.parser')
-    return bs.text
+    html_text = BeautifulSoup(html_text, 'html.parser').text
+    return html_text
+
+def get_html_text(file_path) -> str:
+    html_text = open(file_path, 'r')
+    html_text = "\n".join(html_text.readlines())
+    html_text = html_text.replace("</p><p>", "\n")
+    html_text = html_text.replace("</p>", "\n")
+    html_text = html_text.replace("<p>", "\n")
+
+    html_text = BeautifulSoup(html_text, 'html.parser').text
+    return html_text
+
 
 def trim_whitespace(txt: str) -> str:
     # Remove control characters (like \u0096)
@@ -128,6 +140,8 @@ def remove_br_chars(txt: str) -> str:
         'ª': 'a',
         '§': '>',
         '\u201c': '',
+        '\u2013': '-',
+        '\u2212': '-',
         '”': '',
     }
     # Build a regex pattern from the translation table
@@ -247,13 +261,19 @@ def obligation_detection(url, name):
     regulations = {
         "DSA": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32022R2065",
         "AI_Act": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202401689",
-        "GDPR": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0679"
+        "GDPR": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0679",
+        "LGPD": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+        "PLIA": "../data/raw/datasets/PLIA.html"
     }
 
     if not url:
         url = regulations[name]
-
-    txt = get_url_text(url)
+        print(url)
+    
+    if url.find("data/raw/datasets/") != -1:
+        txt = get_html_text(url)
+    else:
+        txt = get_url_text(url)
     printf(txt, "original.txt")
     txt = trim_whitespace(txt)
     printf(txt, "trimmed.txt")
@@ -291,5 +311,4 @@ def obligation_detection(url, name):
 
 
 if __name__ == "__main__":
-    url = "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm"
-    obligation_detection(url, "LGPD")
+    obligation_detection(None, "LGPD")
