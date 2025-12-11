@@ -182,7 +182,7 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
                 idx = sub_idx - 1
                 break
             sub_level = is_index(sentences[sub_idx])
-            if sub_level == -1 and idx_level == 0:
+            if (sub_level == -1 and idx_level == 0) or (idx_level == -1 and sub_level == 1):
                 # Paragrafos complementam o artigo, mas não os incisos,
                 # Parágrafo dentro de uma lista de incisos, interrompe a busca.
                 # Parágrafo dentro de um artigo, continua a busca.
