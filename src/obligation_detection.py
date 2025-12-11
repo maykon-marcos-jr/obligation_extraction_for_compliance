@@ -5,7 +5,7 @@ import re
 import nltk #type: ignore
 import unicodedata
 import json
-import spacy #type: ignore
+# import spacy #type: ignore
 from nltk.tokenize import sent_tokenize #type: ignore
 
 nltk.download('punkt_tab', quiet=True)
@@ -79,38 +79,6 @@ def trim_whitespace(txt: str) -> str:
     txt = "\n".join(txt_l)
     return txt
 
-def parse_br_lines(txt: str) -> str:
-    txt = txt.replace("..", "")
-    txt = re.sub(r'\nVigência\n', '\n', txt)
-    txt = re.sub(r'\n,\n', ', ', txt)
-    txt = re.sub(r'\n.\n', '.\n', txt)
-    txt = re.sub(r'\n;\n', ';\n', txt)
-    txt = re.sub(r'\n\(', ' (', txt)
-    txt = re.sub(r'\)\n', ').. ', txt)
-    txt = txt.replace("; e\n", "<> e ")
-    txt = txt.replace("; ou\n", "<> ou ")
-    txt = txt.replace(":\n", ":>< ")
-    txt = txt.replace('.\n', ".. ")
-    txt = txt.replace(';\n', ";; ")
-    txt = txt.replace('\n', ". ")
-    txt = txt.replace('.. ', ".\n")
-    txt = txt.replace(';; ', ";\n")
-    txt = txt.replace("<> e ", "; e\n")
-    txt = txt.replace("<> ou ", "; ou\n")
-    txt = txt.replace(":>< ", ":\n")
-    return txt
-
-def remove_br_chars(txt: str) -> str:
-    # Create a translation table for special characters
-    global translation_table
-    # Build a regex pattern from the translation table
-    pattern = re.compile("|".join(re.escape(key) for key in br.CHAR_MATCH.keys()))
-
-    match_char = lambda x: br.CHAR_MATCH[x.group(0)]
-
-    # Replace special characters using the regex pattern
-    return pattern.sub(match_char, txt)
-
 def texttoref(curr_id, ref):
     # This function converts a reference string into a standardized format.
     if ref[0].lower().startswith('art'):
@@ -161,13 +129,6 @@ def get_refs(s, i) -> list:
 
 def is_index(sentence:str) -> int:
     """
-    Docstring for is_index
-    
-    :param sentence: Description
-    :type sentence: str
-    :return: Description
-    :rtype: int
-
     This function checks if a sentence is an index
       (like "I", "II", "III", etc. or a), b), c), etc.)
     and returns:
@@ -176,10 +137,14 @@ def is_index(sentence:str) -> int:
     - 2 if it's a letter with ) index
     """
     sent = sentence.split(" ")[0]
-    if len(sent) <= 1:
-        return int(sent in ["I", "V", "X", "L", "C", "D", "M"])
+    if sent == "":
+        return 0
     if sent[0] == '(':
         return 0
+    if sent[0] == "§":
+        return -1
+    if len(sent) == 1 and sent in ["I", "V", "X", "L", "C", "D", "M"]:
+        return 1
     if sent[-1] == ')':
         return 2
     try:
@@ -191,6 +156,8 @@ def is_index(sentence:str) -> int:
         return 0
 
 def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
+    if idx >= MAX:
+        return [], idx
     sent = unicodedata.normalize("NFC", sentences[idx]).strip()
     # printf(sent, "unicode.txt")
     # tokens = sent_tokenize(sent)
@@ -198,7 +165,7 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
     pot_deontic = []
     refs = get_refs(sent, idx)
     idx_level = is_index(sent)
-    if sent[-1] != ':' and ((idx_level > 0) or bool(re.search(modals, sent))):
+    if sent[-1] != ':' and ((idx_level != 0) or bool(re.search(modals, sent))):
         # If the sentence is not the start of a list,
         #   and 
         #
@@ -210,8 +177,19 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
     if sent[-1] == ':':
         sub_sents = []
         sub_idx = idx+1
-        while sub_idx < MAX:
-            if idx_level + 1 != is_index(sentences[sub_idx]):
+        while True:
+            if sub_idx >= MAX:
+                idx = sub_idx - 1
+                break
+            sub_level = is_index(sentences[sub_idx])
+            if sub_level == -1 and idx_level == 0:
+                # Paragrafos complementam o artigo, mas não os incisos,
+                # Parágrafo dentro de uma lista de incisos, interrompe a busca.
+                # Parágrafo dentro de um artigo, continua a busca.
+                pass
+            elif sub_level != idx_level + 1:
+                # Se o subnível não for exatamente um nível abaixo
+                # do nível atual, acabou a lista de subitens.
                 idx = sub_idx - 1
                 break
             sub, sub_idx = extract_modal(sentences, sub_idx, MAX, modals)
@@ -250,10 +228,8 @@ def obligation_detection(url, name):
     printf(txt, "original.txt")
     txt = trim_whitespace(txt)
     printf(txt, "trimmed.txt")
-    txt = parse_br_lines(txt)
+    txt = br.parse_br_lines(txt)
     printf(txt, "parsed.txt")
-    # txt = remove_br_chars(txt)
-    # printf(txt, "formatted.txt")
     sentences = txt.split("\n")
 
     obligation_modals_re = r"|".join(br.MODALS)

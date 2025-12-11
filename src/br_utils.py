@@ -1,3 +1,6 @@
+import re
+
+
 MODALS = [
     "adotarão",
     "cabe ",
@@ -83,3 +86,34 @@ CHAR_MATCH = {
     '\u2212': '-',
     '”': '',
 }
+
+def remove_br_chars(txt: str) -> str:
+    # Build a regex pattern from the translation table
+
+    pattern = re.compile("|".join(re.escape(key) for key in CHAR_MATCH.keys()))
+
+    match_char = lambda x: CHAR_MATCH[x.group(0)]
+
+    # Replace special characters using the regex pattern
+    return pattern.sub(match_char, txt)
+
+def parse_br_lines(txt: str) -> str:
+    txt = txt.replace("..", "")
+    txt = re.sub(r'\nVigência\n', '\n', txt)
+    txt = re.sub(r'\n,\n', ', ', txt)
+    txt = re.sub(r'\n.\n', '.\n', txt)
+    txt = re.sub(r'\n;\n', ';\n', txt)
+    txt = re.sub(r'\n\(', ' (', txt)
+    txt = re.sub(r'\)\n', ').. ', txt)
+    txt = txt.replace("; e\n", "<> e ")
+    txt = txt.replace("; ou\n", "<> ou ")
+    txt = txt.replace(":\n", ":>< ")
+    txt = txt.replace('.\n', ".. ")
+    txt = txt.replace(';\n', ";; ")
+    txt = txt.replace('\n', ". ")
+    txt = txt.replace('.. ', ".\n")
+    txt = txt.replace(';; ', ";\n")
+    txt = txt.replace("<> e ", "; e\n")
+    txt = txt.replace("<> ou ", "; ou\n")
+    txt = txt.replace(":>< ", ":\n")
+    return txt
