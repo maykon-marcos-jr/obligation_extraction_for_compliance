@@ -8,10 +8,10 @@ import json
 import spacy #type: ignore
 from nltk.tokenize import sent_tokenize #type: ignore
 
-nltk.download('punkt_tab')
+nltk.download('punkt_tab', quiet=True)
 requests_cache.install_cache('deontic_cache')
 
-from br_utils import obligation_modals
+import br_utils as br
 
 from roman_numerals import RomanNumeral #type: ignore
 
@@ -49,13 +49,16 @@ def get_url_text(url) -> str:
 def get_html_text(file_path) -> str:
     html_text = open(file_path, 'r')
     html_text = "\n".join(html_text.readlines())
-    html_text = html_text.replace("</p><p>", "\n")
+    html_text = html_text.replace(".</p><p>", ".\n")
+    html_text = html_text.replace(",</p><p>", ",\n")
+    html_text = html_text.replace(";</p><p>", ";\n")
+    html_text = html_text.replace(":</p><p>", ":\n")
+    html_text = html_text.replace("</p><p>", ".\n")
     html_text = html_text.replace("</p>", "\n")
     html_text = html_text.replace("<p>", "\n")
 
     html_text = BeautifulSoup(html_text, 'html.parser').text
     return html_text
-
 
 def trim_whitespace(txt: str) -> str:
     # Remove control characters (like \u0096)
@@ -99,55 +102,11 @@ def parse_br_lines(txt: str) -> str:
 
 def remove_br_chars(txt: str) -> str:
     # Create a translation table for special characters
-    translation_table = {
-        'á': 'a',
-        'à': 'a',
-        'ã': 'a',
-        'â': 'a',
-        'Á': 'A',
-        'À': 'A',
-        'Ã': 'A',
-        'Â': 'A',
-        
-        'ç': 'c',
-        'Ç': 'C',
-
-        'é': 'e',
-        'ê': 'e',
-        'ẽ': 'e',
-        'Ê': 'E',
-        'Ẽ': 'E',
-        'É': "E",
-        'É': 'E',
-
-        'í': 'i',
-        'Í': 'I',
-        
-        'ó': 'o',
-        'õ': 'o',
-        'ô': 'o',
-        'Ó': 'O',
-        'Õ': 'O',
-        'Ô': 'O',
-
-        'ú': 'u',
-        'ü': 'u',
-        'Ú': 'U',
-        'Ü': 'U',
-        
-        'º': 'o',
-        '°': 'o',
-        'ª': 'a',
-        '§': '>',
-        '\u201c': '',
-        '\u2013': '-',
-        '\u2212': '-',
-        '”': '',
-    }
+    global translation_table
     # Build a regex pattern from the translation table
-    pattern = re.compile("|".join(re.escape(key) for key in translation_table.keys()))
+    pattern = re.compile("|".join(re.escape(key) for key in br.CHAR_MATCH.keys()))
 
-    match_char = lambda x: translation_table[x.group(0)]
+    match_char = lambda x: br.CHAR_MATCH[x.group(0)]
 
     # Replace special characters using the regex pattern
     return pattern.sub(match_char, txt)
@@ -218,9 +177,9 @@ def is_index(sentence:str) -> bool:
 
 def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], bool]:
     sent = unicodedata.normalize("NFC", sentences[idx]).strip()
-    printf(sent, "unicode.txt")
-    tokens = sent_tokenize(sent)
-    printf(tokens, "token.txt")
+    # printf(sent, "unicode.txt")
+    # tokens = sent_tokenize(sent)
+    # printf(tokens, "token.txt")
     pot_deontic = []
     refs = get_refs(sent, idx)
     if bool(re.search(modals, sent)):
@@ -263,13 +222,13 @@ def obligation_detection(url, name):
         "AI_Act": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202401689",
         "GDPR": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0679",
         "LGPD": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
-        "PLIA": "../data/raw/datasets/PLIA.html"
+        "PLIA": "../data/PLIA.html"
     }
 
     if not url:
         url = regulations[name]
     
-    if url.find("data/raw/datasets/") != -1:
+    if url.find("data/") != -1:
         txt = get_html_text(url)
     else:
         txt = get_url_text(url)
@@ -282,8 +241,7 @@ def obligation_detection(url, name):
     # printf(txt, "formatted.txt")
     sentences = txt.split("\n")
 
-    global obligation_modals
-    obligation_modals_re = r"|".join(obligation_modals)
+    obligation_modals_re = r"|".join(br.MODALS)
 
     d = []
 
@@ -303,7 +261,7 @@ def obligation_detection(url, name):
         )
                 
     # Save the extracted data to a JSON file.
-    with open("../data/raw/datasets/" + name + ".json", "w") as f:
+    with open("../data/" + name + ".json", "w") as f:
         json.dump(d, f, indent=4)
     
     return d
