@@ -159,41 +159,63 @@ def get_refs(s, i) -> list:
         refs.append(texttoref(i, r))
     return refs
 
-def is_index(sentence:str) -> bool:
+def is_index(sentence:str) -> int:
+    """
+    Docstring for is_index
+    
+    :param sentence: Description
+    :type sentence: str
+    :return: Description
+    :rtype: int
+
+    This function checks if a sentence is an index
+      (like "I", "II", "III", etc. or a), b), c), etc.)
+    and returns:
+    - 0 if it's not an index
+    - 1 if it's a roman-numeral index
+    - 2 if it's a letter with ) index
+    """
     sent = sentence.split(" ")[0]
     if len(sent) <= 1:
-        return sent in ["I", "V", "X", "L", "C", "D", "M"]
+        return int(sent in ["I", "V", "X", "L", "C", "D", "M"])
     if sent[0] == '(':
-        return False
+        return 0
     if sent[-1] == ')':
-        return True
+        return 2
     try:
         val = RomanNumeral.from_string(sent)
         if int(val) > 0:
-            return True
-        else: return False
+            return 1
+        else: return 0
     except:
-        return False
+        return 0
 
-def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], bool]:
+def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
     sent = unicodedata.normalize("NFC", sentences[idx]).strip()
     # printf(sent, "unicode.txt")
     # tokens = sent_tokenize(sent)
     # printf(tokens, "token.txt")
     pot_deontic = []
     refs = get_refs(sent, idx)
-    if bool(re.search(modals, sent)):
-        # If the sentence contains any of the obligation modals,
+    idx_level = is_index(sent)
+    if sent[-1] != ':' and ((idx_level > 0) or bool(re.search(modals, sent))):
+        # If the sentence is not the start of a list,
+        #   and 
+        #
+        # is part of an index list (needed to return something),
+        #   or
+        # contains any of the obligation modals,
         # we proceed to extracting references.
         pot_deontic.append({"sentence": sent, "references": refs})
-    if sent[-1] == ':' and is_index(sentences[idx+1]):
+    if sent[-1] == ':':
         sub_sents = []
-        for i in range(idx+1, MAX):
-            sub, is_part = extract_modal(sentences, i, MAX, modals)
-            if is_part:
-                sub_sents.extend(sub)
-            else:
+        sub_idx = idx+1
+        while sub_idx < MAX:
+            if idx_level + 1 != is_index(sentences[sub_idx]):
+                idx = sub_idx - 1
                 break
+            sub, sub_idx = extract_modal(sentences, sub_idx, MAX, modals)
+            sub_sents.extend(sub)
         for sub in sub_sents:
             merged_sent = sent + " " + sub["sentence"]
             merged_refs = refs + sub["references"]
@@ -203,14 +225,7 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], bool]:
                     "references": merged_refs,
                 }
             )
-    if is_index(sent):
-        printf(sent, "subs.txt")
-        pot_deontic.append(
-            {"sentence": sent,
-                "references": refs}
-        )
-        return pot_deontic, True
-    return pot_deontic, False
+    return pot_deontic, idx + 1
 
 
 def obligation_detection(url, name):
@@ -247,18 +262,22 @@ def obligation_detection(url, name):
 
     N_SENT = len(sentences)
 
-    for i in range(N_SENT):
-        pot_deontic, _ = extract_modal(
-            sentences, i, N_SENT,
+    idx = 0
+    par = 0
+    while idx < N_SENT:
+        pot_deontic, new_idx = extract_modal(
+            sentences, idx, N_SENT,
             obligation_modals_re
         )
+        par += 1
         d.append(
             {
-             "par_id": i,
-             "text": sentences[i],
+             "par_id": par,
+             "text": sentences[idx],
              "potential_deontic": pot_deontic
             }
         )
+        idx = new_idx
                 
     # Save the extracted data to a JSON file.
     with open("../data/" + name + ".json", "w") as f:
