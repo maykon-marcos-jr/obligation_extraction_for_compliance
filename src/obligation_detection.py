@@ -144,9 +144,7 @@ def get_idx_lv(sentence:str) -> int:
     sent = sentence.split(" ")[0]
     if sent == "":
         return 0
-    if sent[0] == '(':
-        return 0
-    if sent[0] == "§":
+    if sent in ["§", "Parágrafo", "Art.", "Artigo", "Art"]:
         return -1
     if len(sent) == 1 and sent in ["I", "V", "X", "L", "C", "D", "M"]:
         return 1
@@ -176,6 +174,7 @@ def update_par_id(sentence: str) -> None:
     Onde não houver, o fluxo segue direto do H1 para o H3.
     H3: Artigo (Ex: Art. 1º, Art. 15.)
     É a unidade básica da lei (o caput).
+    Não são atualizados pelas hierarquias superiores (H1 e H2).
     H4: Parágrafo (Ex: § 1º, Parágrafo único)
     É o desdobramento imediato do artigo.
     H5: Inciso (Ex: I –, II –, XX –)
@@ -185,14 +184,22 @@ def update_par_id(sentence: str) -> None:
     Representada por letras minúsculas. É uma subdivisão dos incisos.
     """
     global par_id
+    art = par_id[2]
     if sentence.startswith("CAPÍTULO"):
         par_id[0] += 1
-        par_id[1:] = [0, 0, 0, 0, 0]
+        par_id[1:] = [0, art, 0, 0, 0]
     elif sentence.startswith("Seção"):
         par_id[1] += 1
-        par_id[2:] = [0, 0, 0, 0]
+        par_id[2:] = [art, 0, 0, 0]
     elif re.match(r"^(Art\.|Artigo)", sentence):
-        par_id[2] += 1
+        art = sentence.split(" ")[1]
+        if art.endswith(".") or art.endswith("º"):
+            art = art[:-1]
+        try:
+            art_num = int(re.findall(r"\d+", art)[0])
+        except:
+            art_num = par_id[2] + 1
+        par_id[2] = art_num
         par_id[3:] = [0, 0, 0]
     elif re.match(r"^(§|Parágrafo)", sentence):
         par_id[3] += 1
@@ -204,12 +211,14 @@ def update_par_id(sentence: str) -> None:
         par_id[5] += 1
 
 MAX = 0 # Global variable to hold the maximum number of sentences
-def extract_modal(sentences, idx, modals) -> tuple[list[dict], int]:
+def extract_modal(sentences, idx, modals) -> tuple[list[dict], int, str]:
     global MAX
     if idx >= MAX:
-        return [], idx
+        return [], idx, ""
     sent = unicodedata.normalize("NFC", sentences[idx]).strip()
     update_par_id(sent)
+    global par_id
+    this_id = ".".join([str(p) for p in par_id])
     # printf(sent, "unicode.txt")
     # tokens = sent_tokenize(sent)
     # printf(tokens, "token.txt")
@@ -243,7 +252,7 @@ def extract_modal(sentences, idx, modals) -> tuple[list[dict], int]:
                 # do nível atual, acabou a lista de subitens.
                 idx = sub_idx - 1
                 break
-            sub, sub_idx = extract_modal(sentences, sub_idx, modals)
+            sub, sub_idx, _ = extract_modal(sentences, sub_idx, modals)
             sub_sents.extend(sub)
         for sub in sub_sents:
             merged_sent = sent + " " + sub["sentence"]
@@ -254,7 +263,7 @@ def extract_modal(sentences, idx, modals) -> tuple[list[dict], int]:
                     "references": merged_refs,
                 }
             )
-    return pot_deontic, idx + 1
+    return pot_deontic, idx + 1, this_id
 
 
 def obligation_detection(url, name):
@@ -300,13 +309,13 @@ def obligation_detection(url, name):
 
     idx = 0
     while idx < MAX:
-        pot_deontic, new_idx = extract_modal(
+        pot_deontic, new_idx, this_id = extract_modal(
             sentences, idx,
             obligation_modals_re
         )
         d.append(
             {
-             "par_id": ".".join([str(p) for p in par_id]),
+             "par_id": this_id,
              "text": sentences[idx],
              "potential_deontic": pot_deontic
             }
