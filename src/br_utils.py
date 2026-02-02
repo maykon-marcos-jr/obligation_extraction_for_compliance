@@ -50,7 +50,7 @@ CHAR_MATCH = {
     'À': 'A',
     'Ã': 'A',
     'Â': 'A',
-    
+
     'ç': 'c',
     'Ç': 'C',
 
@@ -64,7 +64,7 @@ CHAR_MATCH = {
 
     'í': 'i',
     'Í': 'I',
-    
+
     'ó': 'o',
     'õ': 'o',
     'ô': 'o',
@@ -76,7 +76,7 @@ CHAR_MATCH = {
     'ü': 'u',
     'Ú': 'U',
     'Ü': 'U',
-    
+
     'º': 'o',
     '°': 'o',
     'ª': 'a',
@@ -116,4 +116,6 @@ def parse_br_lines(txt: str) -> str:
     txt = txt.replace("<> e ", "; e\n")
     txt = txt.replace("<> ou ", "; ou\n")
     txt = txt.replace(":>< ", ":\n")
+    txt = txt.replace(". Art.", "\nArt.")
+    txt = txt.replace(". Seção", "\nSeção")
     return txt

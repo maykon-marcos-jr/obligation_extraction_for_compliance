@@ -160,9 +160,12 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-data/
+data/*/*/*.txt
+data/*/*.txt
+data/*.txt
 logs/
 */*.sqlite
 *.sqlite
+*/*.txt
 */*.json
 *.json

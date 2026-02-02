@@ -17,7 +17,7 @@ from roman_numerals import RomanNumeral #type: ignore
 
 files = []
 
-def printf(text, file="t.txt"):
+def printf(text: str, file="t.txt"):
     mode = 'a'
     if file not in files:
         files.append(file)
@@ -27,7 +27,7 @@ def printf(text, file="t.txt"):
     print("===================", file=(my_file))
     my_file.close()
 
-def get_url_text(url) -> str:
+def get_url_text(url: str) -> str:
     # This function parses the HTML content of a given URL
     # Specifically directed to Brazillian Goverment sites
 
@@ -38,7 +38,7 @@ def get_url_text(url) -> str:
             "Chrome/129.0.0.0 Safari/537.36"
         )
     }
-    
+
     r = requests.get(url, headers=headers)
     r.encoding = "latin-1"   # or "windows-1252"
     html_text = r.text
@@ -46,7 +46,7 @@ def get_url_text(url) -> str:
     html_text = BeautifulSoup(html_text, 'html.parser').text
     return html_text
 
-def get_html_text(file_path) -> str:
+def get_html_text(file_path: str) -> str:
     html_text = open(file_path, 'r')
     html_text = "\n".join(html_text.readlines())
     html_text = html_text.replace(".</p><p>", ".\n")
@@ -59,6 +59,11 @@ def get_html_text(file_path) -> str:
 
     html_text = BeautifulSoup(html_text, 'html.parser').text
     return html_text
+
+def get_txt_text(file_path: str) -> str:
+    txt = open(file_path, 'r')
+    txt = "".join(txt.readlines()).strip()
+    return txt
 
 def trim_whitespace(txt: str) -> str:
     # Remove control characters (like \u0096)
@@ -127,7 +132,7 @@ def get_refs(s, i) -> list:
         refs.append(texttoref(i, r))
     return refs
 
-def is_index(sentence:str) -> int:
+def get_idx_lv(sentence:str) -> int:
     """
     This function checks if a sentence is an index
       (like "I", "II", "III", etc. or a), b), c), etc.)
@@ -155,19 +160,65 @@ def is_index(sentence:str) -> int:
     except:
         return 0
 
-def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
+
+# Global variable to hold the current paragraph ID
+par_id = [0, 0, 0, 0, 0, 0]  # H1 to H6
+
+def update_par_id(sentence: str) -> None:
+    """
+    This function updates the par_id list based on the
+    hierarchical level of the current sentence.
+    H1: CAPÍTULO (Ex: CAPÍTULO I DISPOSIÇÕES PRELIMINARES)
+    É a divisão principal do texto apresentado.
+    H2: Seção (Ex: Seção I Dos Direitos da Pessoa...)
+    É uma subdivisão dentro dos Capítulos.
+    Nota: Nem todos os capítulos possuem seções.
+    Onde não houver, o fluxo segue direto do H1 para o H3.
+    H3: Artigo (Ex: Art. 1º, Art. 15.)
+    É a unidade básica da lei (o caput).
+    H4: Parágrafo (Ex: § 1º, Parágrafo único)
+    É o desdobramento imediato do artigo.
+    H5: Inciso (Ex: I –, II –, XX –)
+    Representado por algarismos romanos. Pode aparecer subordinado diretamente ao Artigo (H3) ou a um Parágrafo (H4).
+    Para manter a consistência da árvore, ele ocupa a 5ª posição hierárquica.
+    H6: Alínea (Ex: a), b), c))
+    Representada por letras minúsculas. É uma subdivisão dos incisos.
+    """
+    global par_id
+    if sentence.startswith("CAPÍTULO"):
+        par_id[0] += 1
+        par_id[1:] = [0, 0, 0, 0, 0]
+    elif sentence.startswith("Seção"):
+        par_id[1] += 1
+        par_id[2:] = [0, 0, 0, 0]
+    elif re.match(r"^(Art\.|Artigo)", sentence):
+        par_id[2] += 1
+        par_id[3:] = [0, 0, 0]
+    elif re.match(r"^(§|Parágrafo)", sentence):
+        par_id[3] += 1
+        par_id[4:] = [0, 0]
+    elif re.match(r"^[IVXLCDM]+(\s–|-)", sentence):
+        par_id[4] += 1
+        par_id[5:] = [0]
+    elif re.match(r"^[a-z]+(\)|\))", sentence):
+        par_id[5] += 1
+
+MAX = 0 # Global variable to hold the maximum number of sentences
+def extract_modal(sentences, idx, modals) -> tuple[list[dict], int]:
+    global MAX
     if idx >= MAX:
         return [], idx
     sent = unicodedata.normalize("NFC", sentences[idx]).strip()
+    update_par_id(sent)
     # printf(sent, "unicode.txt")
     # tokens = sent_tokenize(sent)
     # printf(tokens, "token.txt")
     pot_deontic = []
     refs = get_refs(sent, idx)
-    idx_level = is_index(sent)
+    idx_level = get_idx_lv(sent)
     if sent[-1] != ':' and ((idx_level != 0) or bool(re.search(modals, sent))):
         # If the sentence is not the start of a list,
-        #   and 
+        #   and
         #
         # is part of an index list (needed to return something),
         #   or
@@ -181,7 +232,7 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
             if sub_idx >= MAX:
                 idx = sub_idx - 1
                 break
-            sub_level = is_index(sentences[sub_idx])
+            sub_level = get_idx_lv(sentences[sub_idx])
             if (sub_level == -1 and idx_level == 0) or (idx_level == -1 and sub_level == 1):
                 # Paragrafos complementam o artigo, mas não os incisos,
                 # Parágrafo dentro de uma lista de incisos, interrompe a busca.
@@ -192,7 +243,7 @@ def extract_modal(sentences, idx, MAX, modals) -> tuple[list[dict], int]:
                 # do nível atual, acabou a lista de subitens.
                 idx = sub_idx - 1
                 break
-            sub, sub_idx = extract_modal(sentences, sub_idx, MAX, modals)
+            sub, sub_idx = extract_modal(sentences, sub_idx, modals)
             sub_sents.extend(sub)
         for sub in sub_sents:
             merged_sent = sent + " " + sub["sentence"]
@@ -215,52 +266,61 @@ def obligation_detection(url, name):
         "AI_Act": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202401689",
         "GDPR": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32016R0679",
         "LGPD": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
-        "PLIA": "../data/PLIA.html"
+        "PLIA": "../data/PLIA.html",
     }
 
     if not url:
         url = regulations[name]
-    
-    if url.find("data/") != -1:
-        txt = get_html_text(url)
-    else:
+
+    preformated = False
+    if url.find("data/") == -1:
         txt = get_url_text(url)
-    printf(txt, "original.txt")
-    txt = trim_whitespace(txt)
-    printf(txt, "trimmed.txt")
-    txt = br.parse_br_lines(txt)
-    printf(txt, "parsed.txt")
+    elif url.endswith(".html"):
+        txt = get_html_text(url)
+    elif url.endswith(".txt"):
+        preformated = True
+        txt = get_txt_text(url)
+    else:
+        print("File format not supported.")
+        return
+    if not preformated:
+        printf(txt, "original.txt")
+        txt = trim_whitespace(txt)
+        printf(txt, "trimmed.txt")
+        txt = br.parse_br_lines(txt)
+        printf(txt, "parsed.txt")
     sentences = txt.split("\n")
 
     obligation_modals_re = r"|".join(br.MODALS)
 
     d = []
 
-    N_SENT = len(sentences)
+    global MAX
+    MAX = len(sentences)
 
     idx = 0
-    par = 0
-    while idx < N_SENT:
+    while idx < MAX:
         pot_deontic, new_idx = extract_modal(
-            sentences, idx, N_SENT,
+            sentences, idx,
             obligation_modals_re
         )
-        par += 1
         d.append(
             {
-             "par_id": par,
+             "par_id": ".".join([str(p) for p in par_id]),
              "text": sentences[idx],
              "potential_deontic": pot_deontic
             }
         )
         idx = new_idx
-                
+
     # Save the extracted data to a JSON file.
     with open("../data/" + name + ".json", "w") as f:
-        json.dump(d, f, indent=4)
-    
+        # formats with UTF-8 to allow special characters
+        json.dump(d, f, indent=4, ensure_ascii=False)
+
     return d
 
 
 if __name__ == "__main__":
-    obligation_detection(None, "PLIA")
+    # mkdir data/tests
+    obligation_detection("../data/PLIA.txt", "PLIA")
