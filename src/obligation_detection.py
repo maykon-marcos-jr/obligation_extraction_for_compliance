@@ -84,7 +84,7 @@ def trim_whitespace(txt: str) -> str:
     txt = "\n".join(txt_l)
     return txt
 
-def texttoref(curr_id, ref):
+def texttoref(curr_id: int, ref: str) -> list[str]:
     # This function converts a reference string into a standardized format.
     if ref[0].lower().startswith('art'):
         if "e" in ref[1].rstrip():
@@ -95,18 +95,19 @@ def texttoref(curr_id, ref):
             newref = []
             idx = re.search(r"(\d+).+para.+(\d+)", ref[1])
             if idx == None:
-                return
+                return []
             for i in range(int(idx.group(1)), int(idx.group(2))+1):
                 newref.append(str(i).zfill(3) + ".")
         else:
             s_res = re.search(r"(\d+)(?:\.(\d+))?", ref[1].rstrip())
             if s_res == None:
-                return
-            newref = s_res.group(1).zfill(3) + "."
+                return []
+            newref = str(s_res.group(1).zfill(3))
             if s_res.group(2) is not None:
-                newref += s_res.group(2).zfill(3)
+                newref += "." + s_res.group(2).zfill(3)
+            newref = [newref]
     else:
-        curr_split = curr_id.split(".")[0] + "."
+        curr_split = str(curr_id).split(".")[0] + "."
         if "e" in ref[1].rstrip():
             newref = []
             for item in re.findall(r"\d+", ref[1]):
@@ -116,20 +117,68 @@ def texttoref(curr_id, ref):
             newref = []
             idx = re.search(r"(\d+).+para.+(\d+)", ref[1])
             if idx == None:
-                return
+                return []
             for i in range(int(idx.group(1)), int(idx.group(2))+1):
                 newref.append([curr_split + str(i).zfill(3)])
         else:
-            newref = curr_split + ref[1].zfill(3)
+            newref = [curr_split + ref[1].zfill(3)]
     return newref
 
-def get_refs(s, i) -> list:
-    refs_str = re.findall(r"(art.|artigo|paragrafo)s? (\d+(?:\(\d+\))?(?:(?:, \d)+,?)?(?: (?:e|para) \d+)?)( of (?:regulamentacao)|(?:diretiva))?", s, re.IGNORECASE)
+def get_refs(s: str, i: int) -> list:
+    # if line starts (and only starts) with Art., Seção, §, Parágrafo, CAPÍTULO, remove first 2 words
+    if re.match(r"^(Art\.|Artigo|Seção|§|Parágrafo|CAPÍTULO)", s.split(" ")[0]):
+        new_s = " ".join(s.split(" ")[2:])
+    else:
+        new_s = s
     refs = []
-    for r in refs_str:
-        if r[2] != '':
-            continue
-        refs.append(texttoref(i, r))
+
+    # --- Chapters ---
+    cap_refs = re.findall(
+        r"CAP[IÍ]TULO\s+([IVXLCDM]+)",
+        new_s,
+        re.IGNORECASE
+    )
+
+    # --- Sections ---
+    sec_refs = re.findall(
+        r"[Ss]e[cç][aãõ][oe]s?\s+([IVXLCDM]+)",
+        new_s
+    )
+
+    # --- Articles and Paragraphs ---
+    art_refs = re.findall(
+        r"(art.|artigo|paragrafo)s? (\d+(?:\(\d+\))?(?:(?:, \d)+,?)?(?: (?:e|para) \d+)?)( de (?:regulamentacao)|(?:diretiva))?",
+        new_s,
+        re.IGNORECASE
+    )
+
+    cap_nums = []
+    if len(cap_refs) == 0:
+        cap_nums = ["000"]
+
+    for cap in cap_refs:
+        # converts roman numerals to integer using RomanNumeral.from_string
+        num = RomanNumeral.from_string(cap)
+        cap_nums.append(f"{str(int(num)).zfill(3)}")
+
+    sec_nums = []
+    if len(sec_refs) == 0:
+        sec_nums = [cap_nums[0] + ".000"]
+
+    for sec in sec_refs:
+        num = RomanNumeral.from_string(sec)
+        sec_nums.append(cap_nums[0] + f".{str(int(num)).zfill(3)}")
+
+    art_nums: list[str] = []
+    for art in art_refs:
+        art_nums.extend(texttoref(i, art))
+
+    for art in art_nums:
+        refs.append(sec_nums[0] + "." + art.zfill(3))
+    if len(art_nums) == 0 and (len(sec_refs) + len(cap_refs)) > 0:
+        refs.append(sec_nums[0] + ".000")
+    # print(">", s)
+    # print(">>", refs)
     return refs
 
 def get_idx_lv(sentence:str) -> int:
@@ -211,7 +260,8 @@ def update_par_id(sentence: str) -> None:
         par_id[5] += 1
 
 MAX = 0 # Global variable to hold the maximum number of sentences
-def extract_modal(sentences, idx, modals) -> tuple[list[dict], int, str]:
+MODALS = r"|".join(br.MODALS) # Regular expression pattern for obligation modals
+def extract_modal(sentences: list[str], idx: int) -> tuple[list[dict], int, str]:
     global MAX
     if idx >= MAX:
         return [], idx, ""
@@ -225,7 +275,7 @@ def extract_modal(sentences, idx, modals) -> tuple[list[dict], int, str]:
     pot_deontic = []
     refs = get_refs(sent, idx)
     idx_level = get_idx_lv(sent)
-    if sent[-1] != ':' and ((idx_level != 0) or bool(re.search(modals, sent))):
+    if sent[-1] != ':' and ((idx_level != 0) or bool(re.search(MODALS, sent))):
         # If the sentence is not the start of a list,
         #   and
         #
@@ -252,7 +302,7 @@ def extract_modal(sentences, idx, modals) -> tuple[list[dict], int, str]:
                 # do nível atual, acabou a lista de subitens.
                 idx = sub_idx - 1
                 break
-            sub, sub_idx, _ = extract_modal(sentences, sub_idx, modals)
+            sub, sub_idx, _ = extract_modal(sentences, sub_idx)
             sub_sents.extend(sub)
         for sub in sub_sents:
             merged_sent = sent + " " + sub["sentence"]
@@ -300,8 +350,6 @@ def obligation_detection(url, name):
         printf(txt, "parsed.txt")
     sentences = txt.split("\n")
 
-    obligation_modals_re = r"|".join(br.MODALS)
-
     d = []
 
     global MAX
@@ -310,9 +358,7 @@ def obligation_detection(url, name):
     idx = 0
     while idx < MAX:
         pot_deontic, new_idx, this_id = extract_modal(
-            sentences, idx,
-            obligation_modals_re
-        )
+            sentences, idx)
         d.append(
             {
              "par_id": this_id,
